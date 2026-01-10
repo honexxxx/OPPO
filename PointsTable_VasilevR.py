@@ -1,110 +1,147 @@
-import re
 import math
+import re
+from typing import List
+
+
+class PointValidator:
+    VALID_COLORS = {"red", "green", "blue"}
+
+    @staticmethod
+    def is_valid_color(color: str) -> bool:
+        return color in PointValidator.VALID_COLORS
 
 
 class Point2D:
-    def __init__(self, x, y, color):
-        if color not in ("red", "green", "blue"):
+    def __init__(self, x: float, y: float, color: str):
+        if not PointValidator.is_valid_color(color):
             raise ValueError(f"Недопустимый цвет: {color}")
         self.x = x
         self.y = y
         self.color = color
 
-    def distance_from_origin(self):
-        return math.sqrt(self.x ** 2 + self.y ** 2)
+    def distance_from_origin(self) -> float:
+        return math.hypot(self.x, self.y)
 
-    def distance_to(self, other):
-        return math.sqrt((self.x - other.x) ** 2 + (self.y - other.y) ** 2)
+    def distance_to(self, other: "Point2D") -> float:
+        return math.hypot(self.x - other.x, self.y - other.y)
 
 
 class PointParser:
-    # регулярки для поиска элементов по ТИПУ, а не по порядку
-    number_pattern = re.compile(r"-?\d+(?:\.\d+)?")
-    color_pattern = re.compile(r"\b(red|green|blue)\b")
+    NUMBER_PATTERN = re.compile(r"-?\d+(?:\.\d+)?")
+    COLOR_PATTERN = re.compile(r"\b(red|green|blue)\b")
 
     @staticmethod
-    def parse(line):
-        numbers = PointParser.number_pattern.findall(line)
-        color_match = PointParser.color_pattern.search(line)
+    def parse(line: str) -> Point2D:
+        numbers = PointParser._extract_numbers(line)
+        color = PointParser._extract_color(line)
+        return Point2D(numbers[0], numbers[1], color)
 
-        if len(numbers) != 2:
-            raise ValueError("Должно быть ровно две координаты")
+    @staticmethod
+    def _extract_numbers(line: str) -> List[float]:
+        values = PointParser.NUMBER_PATTERN.findall(line)
+        if len(values) != 2:
+            raise ValueError("Ожидается ровно две координаты")
+        return list(map(float, values))
 
-        if not color_match:
-            raise ValueError("Цвет не найден или недопустим")
-
-        x, y = map(float, numbers)
-        color = color_match.group(1)
-
-        return Point2D(x, y, color)
-
-
-def read_points_from_file(filename):
-    points = []
-
-    with open(filename, "r", encoding="utf-8") as file:
-        for line_num, line in enumerate(file, 1):
-            if not line.strip():
-                continue
-            try:
-                point = PointParser.parse(line)
-                points.append(point)
-            except Exception as e:
-                print(f"Ошибка в строке {line_num}: {e}")
-
-    return points
+    @staticmethod
+    def _extract_color(line: str) -> str:
+        match = PointParser.COLOR_PATTERN.search(line)
+        if not match:
+            raise ValueError("Цвет не найден")
+        return match.group(1)
 
 
-def print_table(points):
-    if not points:
-        print("Нет данных для отображения.")
-        return
+class FileReader:
+    @staticmethod
+    def read_points(filename: str) -> List[Point2D]:
+        points = []
+        for index, line in enumerate(FileReader._read_lines(filename), 1):
+            FileReader._parse_line(points, line, index)
+        return points
 
-    print("-" * 72)
-    print(f"| {'№':<3} | {'X':<10} | {'Y':<10} | {'Цвет':<10} | {'Расстояние':<15} |")
-    print("-" * 72)
+    @staticmethod
+    def _read_lines(filename: str):
+        with open(filename, encoding="utf-8") as file:
+            for line in file:
+                if line.strip():
+                    yield line
 
-    for i, p in enumerate(points, 1):
+    @staticmethod
+    def _parse_line(points: list, line: str, index: int):
+        try:
+            points.append(PointParser.parse(line))
+        except ValueError as error:
+            print(f"Ошибка в строке {index}: {error}")
+
+
+class PointService:
+    @staticmethod
+    def sort_by_distance(points: List[Point2D]) -> List[Point2D]:
+        return sorted(points, key=lambda p: p.distance_from_origin())
+
+    @staticmethod
+    def filter_by_radius(
+        points: List[Point2D],
+        center: Point2D,
+        radius: float,
+    ) -> List[Point2D]:
+        return [p for p in points if p.distance_to(center) <= radius]
+
+
+class TablePrinter:
+    @staticmethod
+    def print(points: List[Point2D]):
+        if not points:
+            print("Нет данных.")
+            return
+        TablePrinter._print_header()
+        TablePrinter._print_rows(points)
+        TablePrinter._print_footer(points)
+
+    @staticmethod
+    def _print_header():
+        print("-" * 72)
+        print("| №  | X        | Y        | Цвет       | Расстояние     |")
+        print("-" * 72)
+
+    @staticmethod
+    def _print_rows(points: List[Point2D]):
+        for i, point in enumerate(points, 1):
+            TablePrinter._print_row(i, point)
+
+    @staticmethod
+    def _print_row(index: int, point: Point2D):
         print(
-            f"| {i:<3} | {p.x:<10.2f} | {p.y:<10.2f} | {p.color:<10} | {p.distance_from_origin():<15.2f} |"
+            f"| {index:<2} | {point.x:<8.2f} | {point.y:<8.2f} | "
+            f"{point.color:<10} | {point.distance_from_origin():<14.2f} |"
         )
 
-    print("-" * 72)
-    print(f"Всего точек: {len(points)}")
+    @staticmethod
+    def _print_footer(points: List[Point2D]):
+        print("-" * 72)
+        print(f"Всего точек: {len(points)}")
 
 
-def sort_by_distance(points):
-    return sorted(points, key=lambda p: p.distance_from_origin())
-
-
-def points_in_radius(points, center, radius):
-    return [p for p in points if p.distance_to(center) <= radius]
+def read_float(prompt: str) -> float:
+    return float(input(prompt))
 
 
 def main():
-    filename = "points.txt"
-    points = read_points_from_file(filename)
+    points = FileReader.read_points("points.txt")
 
-    print("\n=== Исходные точки ===")
-    print_table(points)
+    print("\n=== Исходные данные ===")
+    TablePrinter.print(points)
 
-    print("\n=== Отсортировано по расстоянию от (0,0) ===")
-    sorted_points = sort_by_distance(points)
-    print_table(sorted_points)
+    print("\n=== Сортировка по расстоянию от (0,0) ===")
+    sorted_points = PointService.sort_by_distance(points)
+    TablePrinter.print(sorted_points)
 
-    try:
-        cx = float(input("\nВведите X центра: "))
-        cy = float(input("Введите Y центра: "))
-        radius = float(input("Введите радиус: "))
+    center = Point2D(read_float("X центра: "), read_float("Y центра: "), "red")
+    radius = read_float("Радиус: ")
 
-        center = Point2D(cx, cy, "red")  # цвет не важен
-        result = points_in_radius(points, center, radius)
-
-        print(f"\n=== Точки в радиусе {radius} от ({cx}, {cy}) ===")
-        print_table(result)
-
-    except ValueError:
-        print("Ошибка ввода координат или радиуса.")
+    print("\n=== Точки в радиусе ===")
+    result = PointService.filter_by_radius(points, center, radius)
+    TablePrinter.print(result)
 
 
 if __name__ == "__main__":

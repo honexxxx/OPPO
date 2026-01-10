@@ -122,26 +122,66 @@ class TablePrinter:
         print(f"Всего точек: {len(points)}")
 
 
+class PointWriter:
+    @staticmethod
+    def save(points: List[Point2D], filename: str):
+        with open(filename, "w", encoding="utf-8") as file:
+            PointWriter._write_points(file, points)
+
+    @staticmethod
+    def _write_points(file, points: List[Point2D]):
+        for index, point in enumerate(points, 1):
+            file.write(PointWriter._format_line(index, point))
+
+    @staticmethod
+    def _format_line(index: int, point: Point2D) -> str:
+        return (
+            f"{index}) x={point.x:.2f} y={point.y:.2f} "
+            f"color={point.color} "
+            f"distance={point.distance_from_origin():.2f}\n"
+        )
+
+
 def read_float(prompt: str) -> float:
     return float(input(prompt))
 
 
+def read_center_point() -> Point2D:
+    x = read_float("X центра: ")
+    y = read_float("Y центра: ")
+    return Point2D(x, y, "red")
+
+
+def read_radius() -> float:
+    return read_float("Радиус: ")
+
+
+def show_and_save(title: str, points: List[Point2D], filename: str):
+    print(title)
+    TablePrinter.print(points)
+    PointWriter.save(points, filename)
+
+
 def main():
     points = FileReader.read_points("points.txt")
+    show_and_save("\n=== Исходные данные ===", points, "all_points.txt")
 
-    print("\n=== Исходные данные ===")
-    TablePrinter.print(points)
-
-    print("\n=== Сортировка по расстоянию от (0,0) ===")
     sorted_points = PointService.sort_by_distance(points)
-    TablePrinter.print(sorted_points)
+    show_and_save(
+        "\n=== Сортировка по расстоянию от (0,0) ===",
+        sorted_points,
+        "sorted_points.txt",
+    )
 
-    center = Point2D(read_float("X центра: "), read_float("Y центра: "), "red")
-    radius = read_float("Радиус: ")
+    center = read_center_point()
+    radius = read_radius()
+    filtered = PointService.filter_by_radius(points, center, radius)
 
-    print("\n=== Точки в радиусе ===")
-    result = PointService.filter_by_radius(points, center, radius)
-    TablePrinter.print(result)
+    show_and_save(
+        "\n=== Точки в заданном радиусе ===",
+        filtered,
+        "filtered_points.txt",
+    )
 
 
 if __name__ == "__main__":
